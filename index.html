@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assetline Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .timeline-shade { position:absolute; top:0; bottom:0; z-index:0; pointer-events:none; background:rgba(255,255,255,.022); }
+      .timeline-group { z-index:1; }
+      .task-bar.has-image { border:0 !important; outline:0; }
+      .planner-view { padding-top:10px; padding-bottom:12px; }
+      .status-drop { position:fixed; z-index:40; right:318px; bottom:26px; padding:10px 13px; border:1px solid #4e70c6; border-radius:8px; background:#24345f; color:#dae4ff; font:700 11px "Open Sans",Arial,sans-serif; box-shadow:0 15px 30px rgba(0,0,0,.32); transition:transform .15s,background .15s; }
+      .done-drop { right:190px; border-color:#43806d; background:#203e36; color:#d4f3e9; }
+      .status-drop.drag-over { transform:scale(1.06); background:#39559a; border-color:#94b3ff; }
+      .done-drop.drag-over { background:#2f6758; border-color:#8be0c2; }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand-row"><div class="brand-mark">A</div><div class="brand-name">ASSETLINE<span>planner</span></div><button class="icon-button collapse-button" id="collapseSidebar" title="Collapse sidebar" aria-label="Collapse sidebar">&lsaquo;</button></div>
+        <nav class="sidebar-nav" aria-label="Navigation">
+          <button class="nav-item active" data-view="planner"><span class="nav-icon">▤</span><span>Timeline</span></button>
+          <button class="nav-item" data-view="archive"><span class="nav-icon">□</span><span>Archive</span><span class="nav-count" id="archiveCount">0</span></button>
+        </nav>
+        <div class="sidebar-filter-heading"><span>FILTER BY</span><button class="sidebar-all-button" id="sidebarAll">All</button></div>
+        <section class="sidebar-section dlc-section"><div class="section-heading"><span>DLC</span><button class="tiny-add" id="addDlcButton" title="Add DLC">+</button></div><div id="dlcList" class="dlc-list"></div></section>
+        <section class="sidebar-section people-section"><div class="section-heading"><span>PEOPLE</span><button class="tiny-add" id="addWorkerButton" title="Add person">+</button></div><div id="workerList" class="worker-list"></div></section>
+        <div class="sidebar-footer"><span class="sync-dot"></span><span>Saved locally</span><button class="icon-button" id="dataButton" title="Backups">&hellip;</button></div>
+      </aside>
+      <main class="main-content">
+        <header class="topbar">
+          <div><p class="eyebrow" id="viewKicker">MASTER PLAN</p><h1 id="viewTitle">Planner</h1></div>
+          <div class="topbar-actions"><button class="ghost-button" id="todayButton">Today</button><div class="zoom-control" aria-label="Timeline zoom"><button class="icon-button" id="zoomOut" aria-label="Zoom out">&minus;</button><span id="zoomLabel">Weeks</span><button class="icon-button" id="zoomIn" aria-label="Zoom in">+</button></div><button class="primary-button" id="addTaskButton"><span>+</span> Add item</button></div>
+        </header>
+        <section class="filterbar" id="filterbar">
+          <div class="filter-label">FILTERS</div><button class="filter-pill selected" data-filter="type" data-value="all">All</button><button class="filter-pill" data-filter="type" data-value="work">Work</button><button class="filter-pill" data-filter="type" data-value="personal">Personal</button><span class="filter-divider"></span><button class="filter-select" id="dlcFilter">DLC <span>⌄</span></button><button class="filter-select" id="workerFilter">People <span>⌄</span></button><div class="logic-switch" title="How selected filters are combined"><button class="logic-button active" data-logic="AND">AND</button><button class="logic-button" data-logic="OR">OR</button></div><button class="clear-filters" id="clearFilters">Clear</button>
+        </section>
+        <section class="planner-view" id="plannerView">
+          <div class="gantt-card"><div class="gantt-scroll" id="ganttScroll"><div class="gantt-layout" id="ganttLayout"><div class="task-column"><div class="task-column-head"><span>ITEM</span><span>OWNER</span></div><div id="taskRows"></div></div><div class="timeline-column"><div id="timelineHead" class="timeline-head"></div><div id="timelineBody" class="timeline-body"></div></div></div></div><div class="gantt-footer"><span>Drag a card to move it &middot; drag its right edge to change the deadline</span><span>&harr;</span></div></div>
+        </section>
+        <section class="archive-view hidden" id="archiveView"><div class="archive-intro"><p>Completed products and tasks live here. You can return any item to work at any time.</p></div><div class="archive-grid" id="archiveGrid"></div></section>
+      </main>
+    </div>
+    <div class="modal-backdrop hidden" id="modalBackdrop">
+      <section class="modal" id="taskModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-head"><div><p class="eyebrow">NEW ITEM</p><h2 id="modalTitle">Add product</h2></div><button class="icon-button close-modal" data-close-modal aria-label="Close">&times;</button></div>
+        <form id="taskForm" class="task-form"><input type="hidden" id="taskId" /><div class="form-grid"><label class="form-field wide"><span>Name</span><input id="taskTitle" required maxlength="80" placeholder="For example, nd_nap_train" /></label><label class="form-field"><span>Type</span><select id="taskType"><option value="work">Work product</option><option value="personal">Personal task</option></select></label><label class="form-field"><span>Status</span><select id="taskStatus"><option value="todo">To do</option><option value="progress">In progress</option><option value="done">Done</option></select></label><label class="form-field"><span>DLC</span><select id="taskDlc"></select></label><label class="form-field"><span>Owner</span><select id="taskWorker"></select></label><label class="form-field"><span>Start</span><input id="taskStart" type="date" required /></label><label class="form-field"><span>Deadline</span><input id="taskEnd" type="date" required /></label><label class="form-field color-field"><span>Color</span><input id="taskColor" type="color" value="#577cf4" /></label></div><label class="form-field"><span>Note</span><textarea id="taskNote" rows="2" placeholder="Short context or note"></textarea></label><div class="image-upload" id="imageDropzone" tabindex="0"><input type="file" id="taskImage" accept="image/*" hidden /><div class="image-placeholder" id="imagePlaceholder"><strong>Add cover image</strong><span>Choose a file or paste a screenshot with Ctrl + V</span></div><img id="imagePreview" class="hidden" alt="Cover preview" /><button type="button" class="remove-image hidden" id="removeImage">&times;</button></div><div class="modal-actions"><button type="button" class="ghost-button" data-close-modal>Cancel</button><button type="submit" class="primary-button">Save item</button></div></form>
+      </section>
+      <section class="modal small-modal hidden" id="workerModal" role="dialog" aria-modal="true" aria-labelledby="workerModalTitle"><div class="modal-head"><div><p class="eyebrow">TEAM</p><h2 id="workerModalTitle">Add person</h2></div><button class="icon-button close-modal" data-close-modal aria-label="Close">&times;</button></div><form id="workerForm" class="simple-form"><label class="form-field"><span>Name</span><input id="workerName" required maxlength="40" placeholder="For example, Alex" /></label><div class="modal-actions"><button type="button" class="ghost-button" data-close-modal>Cancel</button><button class="primary-button">Add person</button></div></form></section>
+      <section class="modal small-modal hidden" id="dlcModal" role="dialog" aria-modal="true" aria-labelledby="dlcModalTitle"><div class="modal-head"><div><p class="eyebrow">PLANNING</p><h2 id="dlcModalTitle">Add DLC</h2></div><button class="icon-button close-modal" data-close-modal aria-label="Close">&times;</button></div><form id="dlcForm" class="simple-form"><input type="hidden" id="dlcId" /><label class="form-field"><span>DLC name</span><input id="dlcName" required maxlength="50" placeholder="For example, Nordic Horizons" /></label><label class="form-field"><span>Asset placement deadline</span><input id="dlcLockDate" required type="date" /></label><div class="modal-actions"><button type="button" class="delete-button hidden" id="deleteDlc">Delete DLC</button><button type="button" class="ghost-button" data-close-modal>Cancel</button><button class="primary-button" id="saveDlc">Add DLC</button></div></form></section>
+      <section class="modal small-modal hidden" id="dataModal" role="dialog" aria-modal="true" aria-labelledby="dataModalTitle"><div class="modal-head"><div><p class="eyebrow">DATA</p><h2 id="dataModalTitle">Backup</h2></div><button class="icon-button close-modal" data-close-modal aria-label="Close">&times;</button></div><div class="data-actions"><p>Data is stored in this browser for now. Export creates a copy you can import on another computer.</p><button class="ghost-button" id="exportButton">Export data</button><label class="ghost-button import-label">Import data<input type="file" id="importInput" accept="application/json" hidden /></label><p class="sync-note">Cloud sync is the next step, connected through your Supabase project.</p></div></section>
+    </div>
+    <div class="popover hidden" id="filterPopover"></div><div class="toast hidden" id="toast"></div>
+    <div class="status-drop hidden" id="statusWip" data-drop-status="progress">Work in progress</div>
+    <div class="status-drop done-drop hidden" id="statusDone" data-drop-status="done">Done</div>
+    <div class="trash-drop hidden" id="trashDrop" aria-label="Delete item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 3v6h2v-6h-2Zm4 0v6h2v-6h-2Z"/></svg><span>Drop to delete</span></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
