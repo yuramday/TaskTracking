@@ -227,12 +227,99 @@ $('#workerList').addEventListener('click', e => {
     }
 
 });
-$('#addTaskButton').addEventListener('click',newTask);$('#addWorkerButton').addEventListener('click',()=>{$('#workerForm').reset();openModal('workerModal');});$('#addDlcButton').addEventListener('click',()=>openDlc());$('#dataButton').addEventListener('click',()=>openModal('dataModal'));
+$('#addTaskButton').addEventListener('click',newTask);$('#addWorkerButton').addEventListener('click',()=>{$('#workerForm').reset();$('#workerId').value = '';$('#workerModalTitle').textContent = 'Add Person';$('#saveWorker').textContent = 'Add Person';$('#deleteWorker').classList.add('hidden');openModal('workerModal');});$('#addDlcButton').addEventListener('click',()=>openDlc());$('#dataButton').addEventListener('click',()=>openModal('dataModal'));
 $$('[data-close-modal]').forEach(b=>b.addEventListener('click',closeModal));$('#modalBackdrop').addEventListener('click',e=>{if(e.target===$('#modalBackdrop'))closeModal();});$('#taskType').addEventListener('change',updateTaskFormType);
 $('#taskForm').addEventListener('submit',e=>{e.preventDefault();const id=$('#taskId').value,task={id:id||uid('task'),title:$('#taskTitle').value.trim(),type:$('#taskType').value,dlcId:$('#taskDlc').value,workerId:$('#taskWorker').value,start:$('#taskStart').value,end:$('#taskEnd').value,status:$('#taskStatus').value,color:$('#taskColor').value,note:$('#taskNote').value.trim(),image:draftImage};if(!task.title)return;if(new Date(task.end)<new Date(task.start)){toast('Deadline cannot be before the start date');return;}if(id)state.tasks=state.tasks.map(t=>t.id===id?task:t);else state.tasks.push(task);saveState();closeModal();render();toast(task.status==='done'?'Item moved to archive':'Item saved');});
-$('#workerForm').addEventListener('submit',e=>{e.preventDefault();const name=$('#workerName').value.trim();if(!name)return;if(state.workers.some(w=>w.name.toLowerCase()===name.toLowerCase())){toast('This person is already on the list');return;}state.workers.push({id:uid('worker'),name});saveState();closeModal();render();toast('Person added');});
+$('#workerForm').addEventListener('submit', e => {
+
+    e.preventDefault();
+
+    const id = $('#workerId').value;
+    const name = $('#workerName').value.trim();
+
+    if (!name) return;
+
+    // Проверяем дубликаты (кроме самого себя)
+    const exists = state.workers.some(w =>
+        w.name.toLowerCase() === name.toLowerCase() &&
+        w.id !== id
+    );
+
+    if (exists) {
+        toast('This person is already on the list');
+        return;
+    }
+
+    if (id) {
+
+        const worker = state.workers.find(w => w.id === id);
+
+        const oldName = worker.name;
+
+        worker.name = name;
+
+        // Обновляем все задачи
+        state.tasks.forEach(task => {
+
+            if (task.workerId === oldName)
+                task.workerId = name;
+
+        });
+
+    } else {
+
+        state.workers.push({
+            id: uid('worker'),
+            name
+        });
+
+    }
+
+    saveState();
+
+    closeModal();
+
+    render();
+
+    toast(id ? 'Worker updated' : 'Person added');
+
+});
 $('#dlcForm').addEventListener('submit',e=>{e.preventDefault();const id=$('#dlcId').value,name=$('#dlcName').value.trim(),lockDate=$('#dlcLockDate').value;if(!name||!lockDate)return;if(id)state.dlcs=state.dlcs.map(d=>d.id===id?{...d,name,lockDate}:d);else state.dlcs.push({id:uid('dlc'),name,lockDate});saveState();closeModal();render();toast(id?'DLC updated':'DLC added');});
 $('#deleteDlc').addEventListener('click',()=>{const id=$('#dlcId').value,d=getDlc(id);if(!d)return;if(!confirm(`Delete “${d.name}”? Its items will remain, but will no longer belong to a DLC.`))return;state.dlcs=state.dlcs.filter(x=>x.id!==id);state.tasks=state.tasks.map(t=>t.dlcId===id?{...t,dlcId:''}:t);state.filter.dlcs=state.filter.dlcs.filter(x=>x!==id);saveState();closeModal();render();toast('DLC deleted');});
+$('#deleteWorker').addEventListener('click', () => {
+
+    const id = $('#workerId').value;
+
+    const worker = state.workers.find(w => w.id === id);
+
+    if (!worker)
+        return;
+
+    if (!confirm(`Delete "${worker.name}"?`))
+        return;
+
+    // снимаем работника со всех задач
+    state.tasks.forEach(task => {
+
+        if (task.workerId === worker.name)
+            task.workerId = '';
+
+    });
+
+    state.workers = state.workers.filter(w => w.id !== id);
+
+    state.filter.workers =
+        state.filter.workers.filter(x => x !== worker.name);
+
+    saveState();
+
+    closeModal();
+
+    render();
+
+    toast("Worker deleted");
+
+});
 $('#taskImage').addEventListener('change',e=>readImage(e.target.files[0]));$('#imageDropzone').addEventListener('click',e=>{if(e.target.id!=='removeImage')$('#taskImage').click();});$('#imageDropzone').addEventListener('keydown',e=>{if(e.key==='Enter')$('#taskImage').click();});document.addEventListener('paste',e=>{if($('#taskModal').classList.contains('hidden'))return;const file=[...e.clipboardData.items].find(x=>x.type.startsWith('image/'))?.getAsFile();if(file){e.preventDefault();readImage(file);toast('Screenshot added');}});$('#removeImage').addEventListener('click',e=>{e.stopPropagation();setPreview('');});
 $('#filterbar').addEventListener('click',e=>{const pill=e.target.closest('.filter-pill');if(pill){state.filter.type=pill.dataset.value;saveState();render();}const logic=e.target.closest('.logic-button');if(logic){state.filter.logic=logic.dataset.logic;saveState();render();}});$('#dlcFilter').addEventListener('click',e=>{e.stopPropagation();showFilter('dlc',$('#dlcFilter'));});$('#workerFilter').addEventListener('click',e=>{e.stopPropagation();showFilter('worker',$('#workerFilter'));});document.addEventListener('click',e=>{if(!e.target.closest('#filterPopover')&&!e.target.closest('.filter-select'))$('#filterPopover').classList.add('hidden');});$('#clearFilters').addEventListener('click',()=>{state.filter={type:'all',dlcs:[],workers:[],logic:'AND'};saveState();render();});
 $('#zoomIn').addEventListener('click',()=>{state.zoom=Math.min(2,state.zoom+1);saveState();render();});$('#zoomOut').addEventListener('click',()=>{state.zoom=Math.max(0,state.zoom-1);saveState();render();});$('#todayButton').addEventListener('click',()=>{const range=timelineRange(),left=dayDiff(range.start,dateISO(new Date()))*currentZoom().px;$('#ganttScroll').scrollLeft=Math.max(0,left-220);});
