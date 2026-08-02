@@ -171,6 +171,23 @@ function setPreview(value){draftImage=value||'';$('#imagePreview').src=draftImag
 function newTask(){const now=dateISO(new Date());$('#taskForm').reset();$('#taskId').value='';$('#taskType').value='work';$('#taskStatus').value='todo';$('#taskStart').value=now;$('#taskEnd').value=addDays(now,7);$('#taskColor').value='#577cf4';setPreview('');fillSelects();updateTaskFormType();$('#modalTitle').textContent='Add product';openModal('taskModal');}
 function editTask(id){const t=state.tasks.find(x=>x.id===id);if(!t)return;$('#taskForm').reset();$('#taskId').value=t.id;$('#taskTitle').value=t.title;$('#taskType').value=t.type;$('#taskStatus').value=t.status;$('#taskStart').value=t.start;$('#taskEnd').value=t.end;$('#taskColor').value=t.color;$('#taskNote').value=t.note||'';fillSelects(t);setPreview(t.image||'');updateTaskFormType();$('#modalTitle').textContent='Edit item';openModal('taskModal');}
 function openDlc(id){const d=id&&getDlc(id);$('#dlcForm').reset();$('#dlcId').value=d?.id||'';$('#dlcName').value=d?.name||'';$('#dlcLockDate').value=d?.lockDate||addDays(dateISO(new Date()),30);$('#dlcModalTitle').textContent=d?'Edit DLC':'Add DLC';$('#saveDlc').textContent=d?'Save changes':'Add DLC';$('#deleteDlc').classList.toggle('hidden',!d);openModal('dlcModal');}
+function openWorker(id){
+
+    const worker = state.workers.find(w=>w.id===id);
+
+    $("#workerId").value = worker.id;
+
+    $("#workerName").value = worker.name;
+
+    $("#workerModalTitle").textContent = "Edit Worker";
+
+    $("#saveWorker").textContent = "Save changes";
+
+    $("#deleteWorker").classList.remove("hidden");
+
+    openModal("workerModal");
+
+}
 function readImage(file){if(!file||!file.type.startsWith('image/'))return;const reader=new FileReader();reader.onload=()=>setPreview(reader.result);reader.readAsDataURL(file);}
 function toast(message){const el=$('#toast');el.textContent=message;el.classList.remove('hidden');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>el.classList.add('hidden'),2600);}
 function showFilter(kind,anchor){const options=kind==='dlc'?state.dlcs.map(d=>({value:d.id,label:d.name})):state.workers.map(w=>({value:w.name,label:w.name}));const selected=kind==='dlc'?state.filter.dlcs:state.filter.workers,pop=$('#filterPopover'),rect=anchor.getBoundingClientRect();pop.innerHTML=options.length?options.map(o=>`<label class="popover-option"><input type="checkbox" value="${esc(o.value)}" ${selected.includes(o.value)?'checked':''}/><span>${esc(o.label)}</span></label>`).join(''):'<div class="popover-option">The list is empty</div>';pop.style.left=`${rect.left}px`;pop.style.top=`${rect.bottom+6}px`;pop.classList.remove('hidden');$$('input',pop).forEach(input=>input.addEventListener('change',()=>{const key=kind==='dlc'?'dlcs':'workers';state.filter[key]=$$('input:checked',pop).map(x=>x.value);saveState();render();showFilter(kind,anchor);}));}
@@ -190,7 +207,7 @@ $('#workerList').addEventListener('click', e => {
     if (edit) {
         e.stopPropagation();
 
-        alert(edit.dataset.editWorker); // завтра заменим на меню
+        openWorker(edit.dataset.editWorker); // завтра заменим на меню
 
         return;
     }
