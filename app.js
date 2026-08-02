@@ -100,30 +100,29 @@ function visibleTasks(){ return state.tasks.filter(t => !isArchived(t) && taskMa
 function renderSidebar(){
   const colors=['#7597ff','#76c7ff','#d695bd','#f0ad71','#70cfac'];
   $('#dlcList').innerHTML = state.dlcs.length ? state.dlcs.map((d,i) => `<div class="dlc-item ${state.filter.dlcs.includes(d.id)?'selected':''}" data-filter-dlc="${d.id}"><i class="dlc-color" style="background:${colors[i%colors.length]}"></i><div class="dlc-name"><span>${esc(d.name)}</span><small>asset deadline · ${prettyDate(d.lockDate)}</small></div><button class="dlc-edit" data-edit-dlc="${d.id}" title="Edit DLC">&hellip;</button></div>`).join('') : '<div class="dlc-item"><span>No DLC yet</span></div>';
-  $('#workerList').innerHTML =
-state.workers.map((w,i)=>`
-<div class="dlc-item worker-item ${state.filter.workers.includes(w.name)?'selected':''}"
+  $('#workerList').innerHTML = state.workers.length
+? state.workers.map((w,i)=>`
+<div class="worker-item ${state.filter.workers.includes(w.name)?'selected':''}"
      data-filter-worker="${esc(w.name)}">
 
     <i class="worker-avatar"
        style="background:${colors[i%colors.length]}">
-       ${initials(w.name)}
+        ${initials(w.name)}
     </i>
 
     <div class="dlc-name">
         <span>${esc(w.name)}</span>
     </div>
 
-    <button
-        class="dlc-edit"
-        data-edit-worker="${w.id}"
-        title="Edit Worker">
+    <button class="dlc-edit"
+            data-edit-worker="${w.id}"
+            title="Edit Worker">
         &hellip;
     </button>
 
 </div>
-`).join('');
-  $('#archiveCount').textContent = state.tasks.filter(isArchived).length;
+`).join('')
+: '<div class="worker-item"><span>No workers yet</span></div>';
 }
 function timelineRange(){ const dates=visibleTasks().flatMap(t=>[t.start,t.end]); state.dlcs.forEach(d=>dates.push(d.lockDate)); const min=dates.length?Math.min(...dates.map(d=>new Date(d).getTime()),baseDate.getTime()):baseDate.getTime(); const max=dates.length?Math.max(...dates.map(d=>new Date(d).getTime()),baseDate.getTime()+90*DAY):baseDate.getTime()+90*DAY; const start=dateISO(new Date(min-8*DAY)); return { start, days:Math.max(90,dayDiff(start,dateISO(new Date(max+14*DAY)))+1) }; }
 function utcDate(value){return new Date(`${value}T00:00:00Z`);}
@@ -184,7 +183,33 @@ $$('[data-drop-status]').forEach(drop=>{drop.addEventListener('dragover',e=>{e.p
 $$('.nav-item').forEach(b=>b.addEventListener('click',()=>{activeView=b.dataset.view;render();}));
 $('#sidebarAll').addEventListener('click',()=>{state.filter={type:'all',dlcs:[],workers:[],logic:'AND'};saveState();render();});
 $('#dlcList').addEventListener('click',e=>{const edit=e.target.closest('[data-edit-dlc]');if(edit){e.stopPropagation();openDlc(edit.dataset.editDlc);return;}const item=e.target.closest('[data-filter-dlc]');if(item){state.filter={...state.filter,type:'all',dlcs:[item.dataset.filterDlc],workers:[]};saveState();render();}});
-$('#workerList').addEventListener('click',e=>{const item=e.target.closest('[data-filter-worker]');if(item){state.filter={...state.filter,type:'all',dlcs:[],workers:[item.dataset.filterWorker]};saveState();render();}});
+$('#workerList').addEventListener('click', e => {
+
+    const edit = e.target.closest('[data-edit-worker]');
+
+    if (edit) {
+        e.stopPropagation();
+
+        alert(edit.dataset.editWorker); // завтра заменим на меню
+
+        return;
+    }
+
+    const item = e.target.closest('[data-filter-worker]');
+
+    if (item) {
+        state.filter = {
+            ...state.filter,
+            type:'all',
+            dlcs:[],
+            workers:[item.dataset.filterWorker]
+        };
+
+        saveState();
+        render();
+    }
+
+});
 $('#addTaskButton').addEventListener('click',newTask);$('#addWorkerButton').addEventListener('click',()=>{$('#workerForm').reset();openModal('workerModal');});$('#addDlcButton').addEventListener('click',()=>openDlc());$('#dataButton').addEventListener('click',()=>openModal('dataModal'));
 $$('[data-close-modal]').forEach(b=>b.addEventListener('click',closeModal));$('#modalBackdrop').addEventListener('click',e=>{if(e.target===$('#modalBackdrop'))closeModal();});$('#taskType').addEventListener('change',updateTaskFormType);
 $('#taskForm').addEventListener('submit',e=>{e.preventDefault();const id=$('#taskId').value,task={id:id||uid('task'),title:$('#taskTitle').value.trim(),type:$('#taskType').value,dlcId:$('#taskDlc').value,workerId:$('#taskWorker').value,start:$('#taskStart').value,end:$('#taskEnd').value,status:$('#taskStatus').value,color:$('#taskColor').value,note:$('#taskNote').value.trim(),image:draftImage};if(!task.title)return;if(new Date(task.end)<new Date(task.start)){toast('Deadline cannot be before the start date');return;}if(id)state.tasks=state.tasks.map(t=>t.id===id?task:t);else state.tasks.push(task);saveState();closeModal();render();toast(task.status==='done'?'Item moved to archive':'Item saved');});
