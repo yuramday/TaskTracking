@@ -1,5 +1,103 @@
 import { supabase } from "./supabase.js";
 
+// Глобальная переменная для текущего пользователя
+let currentUser = null;
+
+// --- AUTH LOGIC ---
+async function initAuth() {
+    // Слушаем изменения авторизации (вход, выход, инициализация)
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session && session.user) {
+            currentUser = session.user;
+            $('#authScreen').classList.add('hidden');
+            $('#appShell').classList.remove('hidden');
+            
+            // Отображаем email пользователя
+            const emailEl = $('#userEmail');
+            if (emailEl) emailEl.textContent = currentUser.email;
+
+            // Загружаем облачные данные пользователя
+            await loadCloudState();
+        } else {
+            currentUser = null;
+            $('#authScreen').classList.remove('hidden');
+            $('#appShell').classList.add('hidden');
+        }
+    });
+}
+
+async function loginWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin
+        }
+    });
+    if (error) toast("Ошибка входа: " + error.message);
+}
+
+async function logout() {
+    await supabase.auth.signOut();
+}
+
+// --- DATABASE LOGIC ---
+async function loadCloudState() {
+    if (!currentUser) return;
+
+    const { data, error } = await supabase
+        .from("planner_state")
+        .select("state")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Cloud state error:", error);
+        state = loadLocalState();
+        render();
+        return;
+    }
+
+    if (!data) {
+        // Если у нового пользователя еще нет записи в БД — берем defaultState и сохраняем
+        console.log("Новый пользователь, создаем начальное состояние...");
+        state = structuredClone(defaultState);
+        await saveState();
+    } else {
+        state = {
+            ...defaultState,
+            ...data.state,
+            filter: {
+                ...defaultState.filter,
+                ...(data.state.filter || {})
+            }
+        };
+        console.log("✅ Загружено из Supabase для пользователя:", currentUser.email);
+    }
+
+    render();
+}
+
+async function saveState() {
+    if (!currentUser) return;
+
+    // Резервная копия локально
+    localStorage.setItem(`${STORE_KEY}_${currentUser.id}`, JSON.stringify(state));
+
+    const { error } = await supabase
+        .from("planner_state")
+        .upsert({
+            user_id: currentUser.id,
+            state: state,
+            updated_at: new Date().toISOString()
+        });
+
+    if (error) {
+        console.error("Supabase save error:", error);
+    } else {
+        console.log("✅ Сохранено в Supabase");
+    }
+}
+
 async function testSupabase() {
     const { data, error } = await supabase
         .from("tasks")
@@ -320,9 +418,12 @@ $('#deleteWorker').addEventListener('click', () => {
     toast("Worker deleted");
 
 });
+$('#googleLoginBtn')?.addEventListener('click', loginWithGoogle);
+$('#logoutButton')?.addEventListener('click', logout);
 $('#taskImage').addEventListener('change',e=>readImage(e.target.files[0]));$('#imageDropzone').addEventListener('click',e=>{if(e.target.id!=='removeImage')$('#taskImage').click();});$('#imageDropzone').addEventListener('keydown',e=>{if(e.key==='Enter')$('#taskImage').click();});document.addEventListener('paste',e=>{if($('#taskModal').classList.contains('hidden'))return;const file=[...e.clipboardData.items].find(x=>x.type.startsWith('image/'))?.getAsFile();if(file){e.preventDefault();readImage(file);toast('Screenshot added');}});$('#removeImage').addEventListener('click',e=>{e.stopPropagation();setPreview('');});
 $('#filterbar').addEventListener('click',e=>{const pill=e.target.closest('.filter-pill');if(pill){state.filter.type=pill.dataset.value;saveState();render();}const logic=e.target.closest('.logic-button');if(logic){state.filter.logic=logic.dataset.logic;saveState();render();}});$('#dlcFilter').addEventListener('click',e=>{e.stopPropagation();showFilter('dlc',$('#dlcFilter'));});$('#workerFilter').addEventListener('click',e=>{e.stopPropagation();showFilter('worker',$('#workerFilter'));});document.addEventListener('click',e=>{if(!e.target.closest('#filterPopover')&&!e.target.closest('.filter-select'))$('#filterPopover').classList.add('hidden');});$('#clearFilters').addEventListener('click',()=>{state.filter={type:'all',dlcs:[],workers:[],logic:'AND'};saveState();render();});
 $('#zoomIn').addEventListener('click',()=>{state.zoom=Math.min(2,state.zoom+1);saveState();render();});$('#zoomOut').addEventListener('click',()=>{state.zoom=Math.max(0,state.zoom-1);saveState();render();});$('#todayButton').addEventListener('click',()=>{const range=timelineRange(),left=dayDiff(range.start,dateISO(new Date()))*currentZoom().px;$('#ganttScroll').scrollLeft=Math.max(0,left-220);});
 $('#taskRows').addEventListener('dblclick',e=>{const title=e.target.closest('.task-row')?.querySelector('.task-title')?.textContent,task=state.tasks.find(t=>t.title===title&&!isArchived(t));if(task)editTask(task.id);});$('#timelineBody').addEventListener('dblclick',e=>{const bar=e.target.closest('.task-bar');if(bar)editTask(bar.dataset.taskId);});$('#archiveGrid').addEventListener('click',e=>{const btn=e.target.closest('[data-restore]');if(btn){const task=state.tasks.find(t=>t.id===btn.dataset.restore);task.status='progress';saveState();render();toast('Item returned to work');}});
 $('#exportButton').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`assetline-backup-${dateISO(new Date())}.json`;a.click();URL.revokeObjectURL(a.href);toast('Backup downloaded');});$('#importInput').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!Array.isArray(data.tasks)||!Array.isArray(data.dlcs)||!Array.isArray(data.workers))throw new Error();state={...defaultState,...data,filter:{...defaultState.filter,...(data.filter||{})}};saveState();closeModal();render();toast('Data imported');}catch{toast('Could not read that file');}};reader.readAsText(file);});
 loadCloudState();
+initAuth();
